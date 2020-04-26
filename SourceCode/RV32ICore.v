@@ -41,9 +41,11 @@ module RV32ICore(
     wire [31:0] data_WB;
     wire [31:0] reg1, reg1_EX;
     wire [31:0] reg2, reg2_EX, reg2_MEM;
+    wire [31:0] op1;//CSR
     wire [31:0] op2;
     wire [31:0] reg_or_imm;
-    wire op2_src;
+    wire op1_src;//CSR
+    wire [1:0] op2_src;//CSR
     wire [3:0] ALU_func_ID, ALU_func_EX;
     wire [2:0] br_type_ID, br_type_EX;
     wire load_npc_ID, load_npc_EX;
@@ -60,13 +62,21 @@ module RV32ICore(
     wire [31:0] result, result_MEM;
     wire [1:0] op1_sel, op2_sel, reg2_sel;
 
-
+    //CSR
+    wire csr_write_en_ID,csr_write_en_EX,csr_write_en_MEM,csr_write_en_WB;
+    wire [11:0] csr_addr_EX,csr_addr_MEM,csr_addr_WB;
+    wire [11:0] csr_wb_addr;
+    wire [31:0] csr_wb_data;
+    wire [31:0] csr_data_ID,csr_data_EX,csr_data_MEM,csr_data_WB;
+    wire [31:0] wb_data;
 
 
     // Adder to compute PC + 4
     assign PC_4 = PC_IF + 4;
-    // MUX for op2 source
-    assign op2 = op2_src ? imm : reg2;
+    //CSR MUX for op1 source
+    assign op1 = op1_src ? imm : reg1;
+    // MUX for op2 source   CSR assign op2 = op2_src ? imm : reg2;
+    assign op2 = (op2_src==2'b10)?csr_data_ID:((op2_src==2'b01) ? imm : reg2);
     // Adder to compute PC_ID + Imm - 4
     assign jal_target = PC_ID + op2 - 4;
     // MUX for ALU op1
@@ -89,6 +99,9 @@ module RV32ICore(
     assign result = load_npc_EX ? PC_EX : ALU_out;
 
 
+
+    //CSR general reg file wbdata
+    assign wb_data = csr_write_en_WB ? csr_data_WB : data_WB;
 
     //Module connections
     // ---------------------------------------------
@@ -150,6 +163,18 @@ module RV32ICore(
     // ---------------------------------------------
 
 
+    //CSR todo
+    ControlAndStatusRegister ControlAndStatusRegister1(
+        .clk(CPU_CLK),
+        .rst(CPU_RST),
+        .csr_write_en(csr_write_en_WB),
+        .csr_addr(inst_ID[31:20]),
+        .csr_wb_addr(csr_addr_WB),
+        .csr_wb_data(data_WB),
+        .csr_data(csr_data_ID)
+    );
+
+
     RegisterFile RegisterFile1(
         .clk(CPU_CLK),
         .rst(CPU_RST),
@@ -157,7 +182,7 @@ module RV32ICore(
         .addr1(inst_ID[19:15]),
         .addr2(inst_ID[24:20]),
         .wb_addr(reg_dest_WB),
-        .wb_data(data_WB),
+        .wb_data(wb_data),//CSR  .wb_data(data_WB),
         .reg1(reg1),
         .reg2(reg2)
     );
@@ -167,6 +192,7 @@ module RV32ICore(
         .inst(inst_ID),
         .jal(jal),
         .jalr(jalr_ID),
+        .op1_src(op1_src),//CSR
         .op2_src(op2_src),
         .ALU_func(ALU_func_ID),
         .br_type(br_type_ID),
@@ -175,6 +201,7 @@ module RV32ICore(
         .load_type(load_type_ID),
         .src_reg_en(src_reg_en_ID),
         .reg_write_en(reg_write_en_ID),
+        .csr_write_en(csr_write_en_ID),//CSR
         .cache_write_en(cache_write_en_ID),
         .alu_src1(alu_src1_ID),
         .alu_src2(alu_src2_ID),
@@ -187,6 +214,17 @@ module RV32ICore(
         .imm(imm)
     );
 
+
+    //CSR 
+    CSR_EX CSR_EX1(
+        .clk(CPU_CLK),
+        .bubbleE(bubbleE),
+        .flushE(flushE),
+        .csr_data_ID(csr_data_ID),
+        .csr_addr_ID(inst_ID[31:20]),
+        .csr_data_EX(csr_data_EX),
+        .csr_addr_EX(csr_addr_EX)
+    );
 
     PC_EX PC_EX1(
         .clk(CPU_CLK),
@@ -208,7 +246,7 @@ module RV32ICore(
         .clk(CPU_CLK),
         .bubbleE(bubbleE),
         .flushE(flushE),
-        .reg1(reg1),
+        .reg1(op1),//CSR .reg1(reg1),
         .reg1_EX(reg1_EX)
     );
 
@@ -254,6 +292,7 @@ module RV32ICore(
         .load_type_ID(load_type_ID),
         .src_reg_en_ID(src_reg_en_ID),
         .reg_write_en_ID(reg_write_en_ID),
+        .csr_write_en_ID(csr_write_en_ID),//CSR
         .cache_write_en_ID(cache_write_en_ID),
         .alu_src1_ID(alu_src1_ID),
         .alu_src2_ID(alu_src2_ID),
@@ -265,6 +304,7 @@ module RV32ICore(
         .load_type_EX(load_type_EX),
         .src_reg_en_EX(src_reg_en_EX),
         .reg_write_en_EX(reg_write_en_EX),
+        .csr_write_en_EX(csr_write_en_EX),//CSR
         .cache_write_en_EX(cache_write_en_EX),
         .alu_src1_EX(alu_src1_EX),
         .alu_src2_EX(alu_src2_EX)
@@ -289,6 +329,17 @@ module RV32ICore(
         .br(br)
     );
 
+
+    //CSR 
+    CSR_MEM CSR_MEM1(
+        .clk(CPU_CLK),
+        .bubbleM(bubbleM),
+        .flushM(flushM),
+        .csr_data_EX(csr_data_EX),
+        .csr_addr_EX(csr_addr_EX),
+        .csr_data_MEM(csr_data_MEM),
+        .csr_addr_MEM(csr_addr_MEM)
+    );
 
     Result_MEM Result_MEM1(
         .clk(CPU_CLK),
@@ -323,10 +374,12 @@ module RV32ICore(
         .wb_select_EX(wb_select_EX),
         .load_type_EX(load_type_EX),
         .reg_write_en_EX(reg_write_en_EX),
+        .csr_write_en_EX(csr_write_en_EX),//CSR
         .cache_write_en_EX(cache_write_en_EX),
         .wb_select_MEM(wb_select_MEM),
         .load_type_MEM(load_type_MEM),
         .reg_write_en_MEM(reg_write_en_MEM),
+        .csr_write_en_MEM(csr_write_en_MEM),//CSR
         .cache_write_en_MEM(cache_write_en_MEM)
     );
 
@@ -354,6 +407,17 @@ module RV32ICore(
     );
 
 
+    //CSR 
+    CSR_WB CSR_WB1(
+        .clk(CPU_CLK),
+        .bubbleW(bubbleW),
+        .flushW(flushW),
+        .csr_data_MEM(csr_data_MEM),
+        .csr_addr_MEM(csr_addr_MEM),
+        .csr_data_WB(csr_data_WB),
+        .csr_addr_WB(csr_addr_WB)
+    );
+
     Addr_WB Addr_WB1(
         .clk(CPU_CLK),
         .bubbleW(bubbleW),
@@ -367,7 +431,9 @@ module RV32ICore(
         .bubbleW(bubbleW),
         .flushW(flushW),
         .reg_write_en_MEM(reg_write_en_MEM),
-        .reg_write_en_WB(reg_write_en_WB)
+        .csr_write_en_MEM(csr_write_en_MEM),//CSR
+        .reg_write_en_WB(reg_write_en_WB),
+        .csr_write_en_WB(csr_write_en_WB)//CSR
     );
 
 

@@ -43,11 +43,13 @@
 `define OP_AUIPC  7'b0010111 //AUIPC的操作码
 `define OP_RegReg 7'b0110011 //寄存器-寄存器算术指令的操作码
 `define OP_RegImm 7'b0010011 //寄存器-立即数算术指令的操作码
+`define OP_CSR    7'b1110011 //CSR指令
 module ControllerDecoder(
     input wire [31:0] inst,
     output wire jal,
     output wire jalr,
-    output wire op2_src,
+    output wire [1:0] op2_src,//CSR 本来一位
+    output wire op1_src,//CSR
     output reg [3:0] ALU_func,
     output reg [2:0] br_type,
     output wire load_npc,
@@ -55,6 +57,7 @@ module ControllerDecoder(
     output reg [2:0] load_type,
     output reg [1:0] src_reg_en,
     output reg reg_write_en,
+    output reg csr_write_en,//CSR
     output reg [3:0] cache_write_en,
     output wire alu_src1,
     output wire [1:0] alu_src2,
@@ -71,7 +74,8 @@ module ControllerDecoder(
     
     assign jal      = op==`OP_JAL;
     assign jalr     = op==`OP_JALR;
-    assign op2_src  = (op==`OP_RegImm||op==`OP_Branch||op==`OP_LUI||op==`OP_AUIPC||op==`OP_Load||op==`OP_JAL||op==`OP_JALR||op==`OP_Store)?1:0;//todo,wrong here  
+    assign op1_src  = (op==`OP_CSR&&(func3==3'b101&&func3==3'b110&&func3==3'b111));//CSR
+    assign op2_src  = (op==`OP_CSR)?2'b10:((op==`OP_RegImm||op==`OP_Branch||op==`OP_LUI||op==`OP_AUIPC||op==`OP_Load||op==`OP_JAL||op==`OP_JALR||op==`OP_Store)?2'b01:2'b00);//todo,wrong here  
     assign load_npc = (op==`OP_JAL||op==`OP_JALR);//好像是对的，jal,jalr选择pc+4存回通用寄存器中..todo
     //memtoregd
     assign wb_select= (op==`OP_Load);//load指令选择data cache，其余选择aluout
@@ -104,6 +108,16 @@ module ControllerDecoder(
                     3'b111:ALU_func=`AND;//ANDI
                 endcase
             `OP_LUI:ALU_func=`LUI;
+            //CSR
+            `OP_CSR:
+                case(func3)
+                    3'b001:ALU_func=`CSRRW;
+                    3'b010:ALU_func=`CSRRS;
+                    3'b011:ALU_func=`CSRRC;
+                    3'b101:ALU_func=`CSRRW;
+                    3'b110:ALU_func=`CSRRS;
+                    3'b111:ALU_func=`CSRRC;
+                endcase
             default:ALU_func=`ADD;
         endcase
 
@@ -149,6 +163,9 @@ module ControllerDecoder(
         //reg_write_en is valid if op!=store or branch
         reg_write_en=(op!=`OP_Store&&op!=`OP_Branch);
 
+        //CSR csr_write_en
+        csr_write_en=(op==`OP_CSR);
+
         //cache_write_en   memwrited    todo
         case(op)
             `OP_Store:
@@ -171,6 +188,7 @@ module ControllerDecoder(
             `OP_Store:   imm_type=`STYPE;
             `OP_RegImm:   imm_type=`ITYPE;
             `OP_RegReg:   imm_type=`RTYPE;
+            `OP_CSR:    imm_type=`CSRTYPE;
         endcase
     end
 endmodule

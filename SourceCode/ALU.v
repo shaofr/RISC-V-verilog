@@ -43,6 +43,9 @@ module ALU(
             `SLT:ALU_out=($signed(op1)<$signed(op2))?32'b1:32'b0;
             `SLTU:ALU_out=(op1<op2)?32'b1:32'b0;
             `LUI:ALU_out=op2;//加载立即数，和op1无关
+            `CSRRW:ALU_out=op1;
+            `CSRRS:ALU_out=op1|op2;
+            `CSRRC:ALU_out=(~op1)&op2;
             default:ALU_out=32'hxxxxxxxx;
         endcase
 endmodule

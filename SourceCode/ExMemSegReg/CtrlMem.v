@@ -38,10 +38,12 @@ module Ctrl_MEM(
     input wire [2:0] load_type_EX,
     input wire reg_write_en_EX,
     input wire [3:0] cache_write_en_EX,
+    input wire csr_write_en_EX,//CSR
     output reg wb_select_MEM,
     output reg [2:0] load_type_MEM,
     output reg reg_write_en_MEM,
-    output reg [3:0] cache_write_en_MEM
+    output reg [3:0] cache_write_en_MEM,
+    output reg csr_write_en_MEM
     );
 
     initial 
@@ -50,6 +52,7 @@ module Ctrl_MEM(
         load_type_MEM = 2'h0;
         reg_write_en_MEM = 0;
         cache_write_en_MEM = 3'h0;
+        csr_write_en_MEM =0;
     end
     
     always@(posedge clk)
@@ -60,6 +63,7 @@ module Ctrl_MEM(
                 wb_select_MEM <= 0;
                 load_type_MEM <= 2'h0;
                 reg_write_en_MEM <= 0;
+                csr_write_en_MEM <= 0;
                 cache_write_en_MEM <= 3'h0;
             end
             else
@@ -68,6 +72,7 @@ module Ctrl_MEM(
                 load_type_MEM <= load_type_EX;
                 reg_write_en_MEM <= reg_write_en_EX;
                 cache_write_en_MEM <= cache_write_en_EX;
+                csr_write_en_MEM <= csr_write_en_EX;
             end
         end
     

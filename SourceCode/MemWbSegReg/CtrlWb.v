@@ -29,18 +29,27 @@
 module Ctrl_WB(
     input wire clk, bubbleW, flushW,
     input wire reg_write_en_MEM,
-    output reg reg_write_en_WB
+    input wire csr_write_en_MEM,//CSR
+    output reg reg_write_en_WB,
+    output reg csr_write_en_WB//CSR
     );
 
     initial reg_write_en_WB = 0;
+    initial csr_write_en_WB = 0;//CSR
     
     always@(posedge clk)
         if (!bubbleW) 
         begin
             if (flushW)
+            begin
                 reg_write_en_WB <= 0;
+                csr_write_en_WB <= 0;//CSR
+            end
             else 
+            begin
                 reg_write_en_WB <= reg_write_en_MEM;
+                csr_write_en_WB <= csr_write_en_MEM;//CSR
+            end
         end
     
 endmodule
